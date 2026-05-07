@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""
+MIT License
+
+Copyright (c) 2024 Md BELLOUCH (mdbellouch)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
+# Created by: Md BELLOUCH
+# GitHub: mdbellouch
+# IG: s3j_.4
+
+import subprocess
+import os
+import sys
+
+# --- ANSI COLORS ---
+G = '\033[92m'  # Green
+Y = '\033[93m'  # Yellow
+R = '\033[91m'  # Red
+C = '\033[96m'  # Cyan
+B = '\033[1m'   # Bold
+E = '\033[0m'   # End
+
+DEFAULT_PROXY = "http://10.187.197.92:7071"
+
+def run_cmd(cmd):
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+def get_installed_apps():
+    result = run_cmd(["flatpak", "list", "--app", "--columns=application,name"])
+    return [line.split('\t') for line in result.stdout.strip().split('\n') if line.strip()]
+
+def get_proxy_status(app_id=None):
+    cmd = ["flatpak", "override", "--user", "--show"]
+    if app_id:
+        cmd.append(app_id)
+    result = run_cmd(cmd)
+    if "http_proxy=" in result.stdout or "https_proxy=" in result.stdout:
+        for line in result.stdout.split('\n'):
+            if "http_proxy=" in line:
+                return line.split('=')[1]
+    return None
+
+def set_proxy(app_id, proxy_url):
+    run_cmd(["flatpak", "override", "--user", f"--env=http_proxy={proxy_url}", app_id])
+    run_cmd(["flatpak", "override", "--user", f"--env=https_proxy={proxy_url}", app_id])
+    run_cmd(["flatpak", "override", "--user", f"--env=ftp_proxy={proxy_url}", app_id])
+    run_cmd(["flatpak", "override", "--user", f"--env=all_proxy={proxy_url}", app_id])
+
+def clear_proxy(app_id=None):
+    vars_to_clear = ["http_proxy", "https_proxy", "ftp_proxy", "all_proxy"]
+    for var in vars_to_clear:
+        args = ["flatpak", "override", "--user", f"--unset-env={var}"]
+        if app_id:
+            args.append(app_id)
+        run_cmd(args)
+
+def clear_screen():
+    os.system('clear' if os.name == 'posix' else 'cls')
+
+def banner():
+    art = r"""
+ ███████╗██╗      █████╗ ████████╗██████╗  █████╗ ██╗  ██╗
+ ██╔════╝██║     ██╔══██╗╚══██╔══╝██╔══██╗██╔══██╗██║ ██╔╝
+ █████╗  ██║     ███████║   ██║   ██████╔╝███████║█████╔╝ 
+ ██╔══╝  ██║     ██╔══██║   ██║   ██╔═══╝ ██╔══██║██╔═██╗ 
+ ██║     ███████╗██║  ██║   ██║   ██║     ██║  ██║██║  ██╗
+ ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝"""
+    print(f"{C}{art}{E}")
+    print(f"\n          {B}{G}--- FLATPAK PROXY CONFIGURATOR ---{E}")
+    print(f"          {Y}Created by: Md BELLOUCH{E}")
+    print(f"          {B}GitHub: {E}mdbellouch | {B}IG: {E}s3j_.4")
+    print(f"{C}="*60 + f"{E}")
+
+def main_menu():
+    while True:
+        clear_screen()
+        banner()
+        print(f" {B}[1]{E} {G}Proxy ALL Apps (Global Override){E}")
+        print(f" {B}[2]{E} {G}Proxy SPECIFIC App{E}")
+        print(f" {B}[3]{E} {C}SHOW Status (Proxied Apps){E}")
+        print(f" {B}[4]{E} {R}Clear ALL Proxy Settings{E}")
+        print(f" {B}[9]{E} Exit")
+        print(f"{C}="*60 + f"{E}")
+        
+        choice = input(f"\n{G}mdbellouch@flatpak:{C}~/proxy${E} ").strip()
+
+        if choice == '1':
+            p = input(f"{Y}[>] Proxy URL (Default {DEFAULT_PROXY}): {E}").strip() or DEFAULT_PROXY
+            run_cmd(["flatpak", "override", "--user", f"--env=http_proxy={p}"])
+            run_cmd(["flatpak", "override", "--user", f"--env=https_proxy={p}"])
+            print(f"\n{G}[✓] Global proxy set to {p}{E}")
+
+        elif choice == '2':
+            apps = get_installed_apps()
+            print(f"\n{B}Detected Applications:{E}")
+            for i, (aid, name) in enumerate(apps, 1):
+                print(f" {C}[{i}]{E} {name}")
+            try:
+                idx = int(input(f"\n{Y}[>] Select App (1-{len(apps)}): {E}")) - 1
+                p = input(f"{Y}[>] Proxy URL: {E}").strip() or DEFAULT_PROXY
+                set_proxy(apps[idx][0].strip(), p)
+                print(f"\n{G}[✓] {apps[idx][1]} is now proxied.{E}")
+            except (ValueError, IndexError):
+                print(f"\n{R}[!] Invalid selection.{E}")
+
+        elif choice == '3':
+            print(f"\n{B}--- Current Proxy Status ---{E}")
+            global_p = get_proxy_status()
+            print(f" {B}GLOBAL SETTING:{E} {G if global_p else R}{global_p if global_p else 'None'}{E}")
+            print(f"{C}-{E}" * 30)
+            apps = get_installed_apps()
+            found = False
+            for aid, name in apps:
+                status = get_proxy_status(aid.strip())
+                if status:
+                    print(f" {G}[PROXIED]{E} {name} {C}->{E} {status}")
+                    found = True
+            if not found and not global_p:
+                print(f" {Y}No specific apps are currently proxied.{E}")
+
+        elif choice == '4':
+            confirm = input(f"{R}[!] Clear everything? (y/n): {E}").lower()
+            if confirm == 'y':
+                clear_proxy()
+                for aid, name in get_installed_apps():
+                    clear_proxy(aid.strip())
+                print(f"\n{G}[✓] All overrides wiped clean.{E}")
+
+        elif choice == '9':
+            print(f"\n{C}Closing connection. Goodbye Md BELLOUCH.{E}")
+            sys.exit(0)
+
+        input(f"\n{B}Press [Enter] to return...{E}")
+
+if __name__ == "__main__":
+    try:
+        main_menu()
+    except Exception as e:
+        print(f"\n{R}Error: {e}{E}")
